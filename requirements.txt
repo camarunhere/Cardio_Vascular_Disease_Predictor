@@ -1,0 +1,17 @@
+fastapi>=0.111
+uvicorn[standard]>=0.30
+scikit-learn>=1.4
+pandas>=2.2
+numpy>=1.26
+shap>=0.45
+joblib>=1.4
+pydantic>=2.7
+pydantic[email]
+pyarrow>=16.0
+sqlalchemy>=2.0
+PyJWT>=2.8
+bcrypt>=4.1
+python-multipart>=0.0.9
+fpdf2>=2.7
+# For PostgreSQL (production DB per design doc), also install:
+# psycopg2-binary>=2.9

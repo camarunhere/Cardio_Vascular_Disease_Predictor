@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cardiovascular Risk Checker</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --text: #1c2530;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --danger-border: #fecaca;
+    --safe: #16a34a;
+    --safe-bg: #f0fdf4;
+    --safe-border: #bbf7d0;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 16px 64px;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 { font-size: 1.6rem; margin: 0 0 6px; }
+  header p { color: var(--muted); margin: 0; font-size: 0.95rem; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .card h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 0 0 16px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 520px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  input[type="number"], select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: #fff;
+    color: var(--text);
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+  }
+  .field { margin-bottom: 4px; }
+  .toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .toggle {
+    flex: 1 1 140px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle input { width: 16px; height: 16px; }
+  .toggle label { margin: 0; font-weight: 500; cursor: pointer; }
+
+  button#submit {
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--primary);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  button#submit:hover { background: var(--primary-dark); }
+  button#submit:disabled { background: #93c5fd; cursor: not-allowed; }
+
+  #result { display: none; }
+  #result.show { display: block; }
+
+  .result-banner {
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+    border: 1px solid;
+  }
+  .result-banner.high { background: var(--danger-bg); border-color: var(--danger-border); }
+  .result-banner.low { background: var(--safe-bg); border-color: var(--safe-border); }
+
+  .result-label { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .high .result-label { color: var(--danger); }
+  .low .result-label { color: var(--safe); }
+
+  .result-pct { font-size: 2.4rem; font-weight: 700; margin: 4px 0 12px; }
+
+  .bar-track { background: rgba(0,0,0,0.08); border-radius: 999px; height: 10px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+  .high .bar-fill { background: var(--danger); }
+  .low .bar-fill { background: var(--safe); }
+
+  .factors { list-style: none; padding: 0; margin: 0; }
+  .factors li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.92rem;
+  }
+  .factors li:last-child { border-bottom: none; }
+  .factor-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+  .factor-icon.up { color: var(--danger); }
+  .factor-icon.down { color: var(--safe); }
+
+  .disclaimer {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  .error-box {
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    color: var(--danger);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .error-box.show { display: block; }
+
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.5);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -3px;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Cardiovascular Risk Checker</h1>
+    <p>Enter your health details to get an AI-powered risk assessment with an explanation of the main contributing factors.</p>
+  </header>
+
+  <div id="error" class="error-box"></div>
+
+  <div id="result">
+    <div class="result-banner" id="banner">
+      <div class="result-label" id="riskLabel"></div>
+      <div class="result-pct" id="riskPct"></div>
+      <div class="bar-track"><div class="bar-fill" id="riskBar" style="width:0%"></div></div>
+    </div>
+    <div class="card">
+      <h2>Key Contributing Factors</h2>
+      <ul class="factors" id="factorsList"></ul>
+    </div>
+    <p class="disclaimer">This assessment is generated by a machine learning model and does not replace professional medical advice.</p>
+  </div>
+
+  <form id="riskForm">
+    <div class="card">
+      <h2>Personal Information</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="age_years">Age (years)</label>
+          <input type="number" id="age_years" min="1" max="120" placeholder="e.g. 45" required />
+        </div>
+        <div class="field">
+          <label for="gender">Gender</label>
+          <select id="gender" required>
+            <option value="" selected disabled>Select…</option>
+            <option value="2">Male</option>
+            <option value="1">Female</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="height_cm">Height (cm)</label>
+          <input type="number" id="height_cm" min="120" max="220" placeholder="e.g. 170" required />
+        </div>
+        <div class="field">
+          <label for="weight_kg">Weight (kg)</label>
+          <input type="number" id="weight_kg" min="30" max="200" placeholder="e.g. 75" required />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Vitals</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="ap_hi">Systolic BP (mmHg)</label>
+          <input type="number" id="ap_hi" min="70" max="250" placeholder="e.g. 120" required />
+        </div>
+        <div class="field">
+          <label for="ap_lo">Diastolic BP (mmHg)</label>
+          <input type="number" id="ap_lo" min="40" max="180" placeholder="e.g. 80" required />
+        </div>
+        <div class="field">
+          <label for="cholesterol">Cholesterol</label>
+          <select id="cholesterol" required>
+            <option value="" selected disabled>Select…</option>
+            <option value="1">Normal</option>
+            <option value="2">Above normal</option>
+            <option value="3">Well above normal</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="gluc">Glucose</label>
+          <select id="gluc" required>
+            <option value="" selected disabled>Select…</option>
+            <option value="1">Normal</option>
+            <option value="2">Above normal</option>
+            <option value="3">Well above normal</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Lifestyle</h2>
+      <div class="toggles">
+        <div class="toggle">
+          <input type="checkbox" id="smoke" />
+          <label for="smoke">Smoker</label>
+        </div>
+        <div class="toggle">
+          <input type="checkbox" id="alco" />
+          <label for="alco">Drinks alcohol</label>
+        </div>
+        <div class="toggle">
+          <input type="checkbox" id="active" />
+          <label for="active">Physically active</label>
+        </div>
+      </div>
+    </div>
+
+    <button id="submit" type="submit">Check My Risk</button>
+  </form>
+</div>
+
+<script>
+const form = document.getElementById('riskForm');
+const errorBox = document.getElementById('error');
+const resultBox = document.getElementById('result');
+const submitBtn = document.getElementById('submit');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorBox.classList.remove('show');
+  resultBox.classList.remove('show');
+
+  const payload = {
+    age_years: parseInt(document.getElementById('age_years').value, 10),
+    gender: parseInt(document.getElementById('gender').value, 10),
+    height_cm: parseFloat(document.getElementById('height_cm').value),
+    weight_kg: parseFloat(document.getElementById('weight_kg').value),
+    ap_hi: parseInt(document.getElementById('ap_hi').value, 10),
+    ap_lo: parseInt(document.getElementById('ap_lo').value, 10),
+    cholesterol: parseInt(document.getElementById('cholesterol').value, 10),
+    gluc: parseInt(document.getElementById('gluc').value, 10),
+    smoke: document.getElementById('smoke').checked ? 1 : 0,
+    alco: document.getElementById('alco').checked ? 1 : 0,
+    active: document.getElementById('active').checked ? 1 : 0,
+  };
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="spinner"></span>Checking...';
+
+  try {
+    const res = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text();
+
+    if (!res.ok) {
+      let detail = text;
+      try { detail = JSON.parse(text).detail || text; } catch (_) {}
+      throw new Error(detail);
+    }
+
+    renderResult(text);
+  } catch (err) {
+    errorBox.textContent = 'Could not get a prediction: ' + err.message;
+    errorBox.classList.add('show');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Check My Risk';
+  }
+});
+
+function renderResult(reportText) {
+  const match = reportText.match(/Result:\s*(HIGH RISK|LOW RISK)\s*\(([\d.]+)%/);
+  const isHigh = match ? match[1] === 'HIGH RISK' : reportText.includes('HIGH RISK');
+  const pct = match ? parseFloat(match[2]) : 0;
+
+  const banner = document.getElementById('banner');
+  banner.className = 'result-banner ' + (isHigh ? 'high' : 'low');
+  document.getElementById('riskLabel').textContent = isHigh ? 'High Risk' : 'Low Risk';
+  document.getElementById('riskPct').textContent = pct.toFixed(1) + '%';
+  document.getElementById('riskBar').style.width = pct + '%';
+
+  const factorsList = document.getElementById('factorsList');
+  factorsList.innerHTML = '';
+  const lines = reportText.split('\n').filter(l => l.trim().startsWith('- '));
+  lines.forEach(line => {
+    const content = line.trim().slice(2);
+    const increases = content.toLowerCase().includes('increases risk');
+    const label = content.replace(/:\s*(increases|decreases) risk$/i, '');
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="factor-icon ${increases ? 'up' : 'down'}">${increases ? '▲' : '▼'}</span><span>${label}</span>`;
+    factorsList.appendChild(li);
+  });
+
+  resultBox.classList.add('show');
+  resultBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>

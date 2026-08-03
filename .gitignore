@@ -1,0 +1,28 @@
+# ── Secrets — never commit ────────────────────────────────────────────────────
+server/.env
+*.env
+!*.env.example
+
+# ── Data (patient uploads, local MongoDB, datasets) ───────────────────────────
+data/
+
+# ── Trained model artifacts (regenerate with: python -m src.augment && python -m src.train_extended)
+models/*.joblib
+models/*.json
+
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+.venv/
+venv/
+
+# ── Build output ──────────────────────────────────────────────────────────────
+frontend/dist/
+__pycache__/
+*.pyc
+
+# ── OS / editor noise ─────────────────────────────────────────────────────────
+.DS_Store
+*.log
+npm-debug.log*
+.idea/
+.vscode/
