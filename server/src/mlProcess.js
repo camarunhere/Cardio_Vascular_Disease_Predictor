@@ -25,8 +25,15 @@ async function isUp() {
 
 function pythonBin() {
   if (process.env.ML_PYTHON) return process.env.ML_PYTHON;
-  const venv = path.join(REPO_ROOT, ".venv", "bin", "python");
-  return existsSync(venv) ? venv : "python3";
+  // venv layout differs by OS: Scripts\python.exe on Windows, bin/python elsewhere.
+  const winVenv = path.join(REPO_ROOT, ".venv", "Scripts", "python.exe");
+  const unixVenv = path.join(REPO_ROOT, ".venv", "bin", "python");
+  if (existsSync(winVenv)) return winVenv;
+  if (existsSync(unixVenv)) return unixVenv;
+  // No venv found — fall back to whatever's on PATH. "python3" is rarely a
+  // real command on Windows (only the Store-alias stub); "py" is the actual
+  // standard launcher there.
+  return process.platform === "win32" ? "py" : "python3";
 }
 
 export async function ensureMlService() {

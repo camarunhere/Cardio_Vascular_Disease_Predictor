@@ -15,6 +15,9 @@ node_modules/
 .venv/
 venv/
 
+# ── CatBoost auto-generated training logs ──────────────────────────────────────
+catboost_info/
+
 # ── Build output ──────────────────────────────────────────────────────────────
 frontend/dist/
 __pycache__/

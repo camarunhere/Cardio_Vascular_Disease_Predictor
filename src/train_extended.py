@@ -13,13 +13,22 @@ import json
 
 import joblib
 import pandas as pd
+from catboost import CatBoostClassifier
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, roc_auc_score
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.tree import DecisionTreeClassifier
 
 NUMERIC_FEATURES = [
     "age_years", "bmi", "ap_hi", "ap_lo", "pulse_pressure",
@@ -38,12 +47,24 @@ TARGET = "cardio"
 # Logistic regression scores marginally higher on ROC-AUC but amplifies a known
 # confound in the Kaggle cardio dataset (smokers skew younger/male, so 'smoke'
 # gets a negative coefficient), which produces clinically misleading SHAP
-# explanations. Tree ensembles keep that artifact small, so only they are
-# candidates for deployment.
+# explanations. Tree-based/non-parametric models keep that artifact small, so
+# only they are candidates for deployment — Decision Tree is included as a
+# non-parametric baseline alongside the two boosted ensembles.
 CANDIDATES = {
-    "random_forest": RandomForestClassifier(n_estimators=300, max_depth=8, random_state=42, n_jobs=-1),
+    "decision_tree": DecisionTreeClassifier(max_depth=6, random_state=42),
+    "catboost": CatBoostClassifier(iterations=300, depth=8, random_state=42, verbose=False),
     "gradient_boosting": GradientBoostingClassifier(random_state=42),
 }
+
+
+def full_metrics(y_true, y_pred, y_proba) -> dict:
+    return {
+        "accuracy": round(float(accuracy_score(y_true, y_pred)), 4),
+        "precision": round(float(precision_score(y_true, y_pred)), 4),
+        "recall": round(float(recall_score(y_true, y_pred)), 4),
+        "f1_score": round(float(f1_score(y_true, y_pred)), 4),
+        "roc_auc": round(float(roc_auc_score(y_true, y_proba)), 4),
+    }
 
 
 def build_pipeline(estimator) -> Pipeline:
@@ -71,10 +92,16 @@ def main() -> None:
     )
 
     scored = []
+    cv_table = []
     for name, estimator in CANDIDATES.items():
         pipeline = build_pipeline(estimator)
         scores = cross_val_score(pipeline, X_train, y_train, cv=5, scoring="roc_auc", n_jobs=-1)
         scored.append((scores.mean(), name, pipeline))
+        cv_table.append({
+            "model": name,
+            "cv_roc_auc_mean": round(float(scores.mean()), 4),
+            "cv_roc_auc_std": round(float(scores.std()), 4),
+        })
         print(f"{name:20s} CV ROC-AUC = {scores.mean():.4f} (+/- {scores.std():.4f})")
 
     scored.sort(key=lambda t: t[0], reverse=True)
@@ -82,21 +109,46 @@ def main() -> None:
     print(f"\nSelected model: {best_name} (CV ROC-AUC = {best_score:.4f})")
 
     pipeline.fit(X_train, y_train)
+    y_pred = pipeline.predict(X_test)
     y_proba = pipeline.predict_proba(X_test)[:, 1]
     test_auc = roc_auc_score(y_test, y_proba)
     print(f"\nHeld-out test ROC-AUC: {test_auc:.4f}")
-    print(classification_report(y_test, pipeline.predict(X_test), target_names=["low_risk", "high_risk"]))
+    print(classification_report(y_test, y_pred, target_names=["low_risk", "high_risk"]))
+
+    print("\n=== Full model comparison on held-out test set ===")
+    comparison_table = []
+    for name, estimator in CANDIDATES.items():
+        candidate_pipeline = build_pipeline(estimator)
+        candidate_pipeline.fit(X_train, y_train)
+        cand_pred = candidate_pipeline.predict(X_test)
+        cand_proba = candidate_pipeline.predict_proba(X_test)[:, 1]
+        metrics = full_metrics(y_test, cand_pred, cand_proba)
+        metrics["model"] = name
+        comparison_table.append(metrics)
+        print(
+            f"{name:20s} acc={metrics['accuracy']:.4f}  prec={metrics['precision']:.4f}  "
+            f"rec={metrics['recall']:.4f}  f1={metrics['f1_score']:.4f}  "
+            f"roc_auc={metrics['roc_auc']:.4f}"
+        )
 
     joblib.dump(pipeline, args.out)
     metadata = {
         "model_name": best_name,
         "test_roc_auc": round(float(test_auc), 4),
+        "test_metrics": full_metrics(y_test, y_pred, y_proba),
+        "cross_validation": cv_table,
+        "model_comparison": comparison_table,
         "features": FEATURE_COLUMNS,
         "n_train": int(len(X_train)),
         "n_test": int(len(X_test)),
         "note": (
             "Trained on the Kaggle cardio dataset augmented with synthetic "
-            "medical-history, wearable, and lifestyle features (src/augment.py)."
+            "medical-history, wearable, and lifestyle features (src/augment.py). "
+            "Logistic regression is excluded from candidates: it scores marginally "
+            "higher on ROC-AUC but amplifies a demographic confound in the source "
+            "data (smoking correlates with younger/male patients), producing a "
+            "clinically misleading SHAP explanation. Non-parametric/tree-based "
+            "models avoid this artifact."
         ),
     }
     with open(args.out.replace(".joblib", "_metadata.json"), "w") as f:

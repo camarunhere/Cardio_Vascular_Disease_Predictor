@@ -121,7 +121,7 @@ def predict(payload: Features) -> dict:
     X_t = prep.transform(X)
     X_t = np.asarray(X_t.todense() if hasattr(X_t, "todense") else X_t)
     background = _background if _background is not None else X_t
-    if type(clf).__name__ in ("GradientBoostingClassifier", "RandomForestClassifier"):
+    if type(clf).__name__ in ("GradientBoostingClassifier", "CatBoostClassifier"):
         explainer = shap.TreeExplainer(clf)
     else:
         explainer = shap.LinearExplainer(clf, background)

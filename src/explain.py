@@ -10,14 +10,15 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import shap
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from catboost import CatBoostClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
 
 def _make_explainer(pipeline: Pipeline, background: np.ndarray):
     clf = pipeline.named_steps["clf"]
-    if isinstance(clf, (RandomForestClassifier, GradientBoostingClassifier)):
+    if isinstance(clf, (CatBoostClassifier, GradientBoostingClassifier)):
         return shap.TreeExplainer(clf)
     if isinstance(clf, LogisticRegression):
         return shap.LinearExplainer(clf, background)
