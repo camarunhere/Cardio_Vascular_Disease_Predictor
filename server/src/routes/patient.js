@@ -13,7 +13,7 @@ import { analyzeReport } from "../reportAnalysis.js";
 import { buildPdfReport } from "../pdf.js";
 import { buildPlanPdf } from "../healthPlan.js";
 import { chatReply } from "../chatbot.js";
-import { recordPayload } from "../serialize.js";
+import { mainReasonFor, recordPayload } from "../serialize.js";
 
 const router = Router();
 const patientOnly = requireRole("patient");
@@ -111,6 +111,27 @@ router.post("/predict", patientOnly, async (req, res) => {
 
   const recommendations = buildRecommendations(inputs, riskLevel, ml.bmi);
 
+  // Every candidate model's own prediction on the same inputs, so the patient
+  // can compare methods and see which one is empirically most accurate.
+  const modelComparison = (ml.all_models || []).map((m) => {
+    const level = m.risk_probability >= high ? "high" : m.risk_probability >= medium ? "medium" : "low";
+    const explanation = humanizeExplanation(m.explanation, inputs);
+    return {
+      model: m.model,
+      risk_probability: m.risk_probability,
+      risk_level: level,
+      main_reason: mainReasonFor(level, explanation),
+      explanation,
+      test_accuracy: m.test_accuracy,
+      test_precision: m.test_precision,
+      test_recall: m.test_recall,
+      test_f1_score: m.test_f1_score,
+      test_roc_auc: m.test_roc_auc,
+      is_deployed: m.is_deployed,
+      is_most_accurate: m.is_most_accurate,
+    };
+  });
+
   const record = await HealthRecord.create({
     patient: req.user._id,
     inputs,
@@ -120,6 +141,7 @@ router.post("/predict", patientOnly, async (req, res) => {
     riskClassification: riskLevel === "high" ? "high_risk" : "low_risk",
     alertStatus: riskLevel === "high" ? "high_risk" : "normal",
     explanation: humanizeExplanation(ml.explanation, inputs),
+    modelComparison,
     recommendations,
   });
   await logActivity(req.user, "predict", `record=${record._id} p=${p.toFixed(3)} level=${riskLevel}`);

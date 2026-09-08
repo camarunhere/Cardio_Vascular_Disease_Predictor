@@ -84,11 +84,31 @@ const BANNER_STYLES = {
   low: { box: "bg-green-50 border-green-200", text: "text-green-600", bar: "bg-green-600", label: "Low Risk" },
 };
 
+const MODEL_LABELS = {
+  logistic_regression: "Logistic Regression",
+  decision_tree: "Decision Tree",
+  catboost: "CatBoost",
+  gradient_boosting: "Gradient Boosting",
+};
+
 export function RiskResult({ record }) {
-  const level = record.risk_level || (record.risk_classification === "high_risk" ? "high" : "low");
+  const models = record.model_comparison || [];
+  const [selected, setSelected] = useState(null);
+
+  // `active` is whichever model's result is currently displayed: the picked
+  // one from the comparison list, or the record's own (deployed model) fields.
+  const picked = selected ? models.find((m) => m.model === selected) : null;
+  const active = picked || {
+    risk_probability: record.risk_probability,
+    risk_level: record.risk_level,
+    main_reason: record.main_reason,
+    explanation: record.explanation,
+  };
+
+  const level = active.risk_level || (record.risk_classification === "high_risk" ? "high" : "low");
   const s = BANNER_STYLES[level] || BANNER_STYLES.low;
-  const pct = record.risk_probability * 100;
-  const maxAbs = Math.max(...record.explanation.map((f) => Math.abs(f.shap_contribution)), 1e-9);
+  const pct = active.risk_probability * 100;
+  const maxAbs = Math.max(...active.explanation.map((f) => Math.abs(f.shap_contribution)), 1e-9);
   const [hovered, setHovered] = useState(null);
 
   return (
@@ -121,21 +141,21 @@ export function RiskResult({ record }) {
         </div>
       </div>
 
-      {record.main_reason && (
+      {active.main_reason && (
         <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4 text-sm">
           <span className="text-lg leading-none">🎯</span>
           <div>
             <span className="font-semibold text-slate-800">Main reason: </span>
-            <span className="text-slate-700">{record.main_reason}</span>
+            <span className="text-slate-700">{active.main_reason}</span>
           </div>
         </div>
       )}
 
       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-        Key Contributing Factors (SHAP)
+        Key Contributing Factors (SHAP){picked && ` — ${MODEL_LABELS[picked.model] || picked.model}`}
       </h3>
       <ul>
-        {record.explanation.map((f, i) => {
+        {active.explanation.map((f, i) => {
           const up = f.direction === "increases_risk";
           const width = (Math.abs(f.shap_contribution) / maxAbs) * 100;
           return (
@@ -166,6 +186,60 @@ export function RiskResult({ record }) {
           );
         })}
       </ul>
+
+      {models.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+            Compare AI Models
+          </h3>
+          <p className="text-xs text-slate-400 mb-3">
+            The same details, predicted by every method we trained. Pick one to see its
+            reasoning above — sorted by accuracy on held-out test data.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {models.map((m) => {
+              const isActive = (selected || models.find((x) => x.is_deployed)?.model) === m.model;
+              return (
+                <button
+                  key={m.model}
+                  type="button"
+                  onClick={() => setSelected(m.model)}
+                  className={`text-left border rounded-xl p-3.5 transition ${
+                    isActive ? "border-blue-400 bg-blue-50/70 shadow-sm" : "border-slate-200 hover:border-slate-300 bg-white/60"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-semibold text-slate-800">
+                      {MODEL_LABELS[m.model] || m.model}
+                    </span>
+                    <div className="flex gap-1">
+                      {m.is_most_accurate && (
+                        <span className="text-[10px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">
+                          Most accurate
+                        </span>
+                      )}
+                      {m.is_deployed && (
+                        <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                          In use
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-bold text-slate-900">
+                      {(m.risk_probability * 100).toFixed(1)}%
+                    </span>
+                    <RiskBadge level={m.risk_level} />
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    Test accuracy {(m.test_accuracy * 100).toFixed(1)}% · ROC-AUC {m.test_roc_auc.toFixed(3)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {record.recommendations && <Recommendations data={record.recommendations} />}
 

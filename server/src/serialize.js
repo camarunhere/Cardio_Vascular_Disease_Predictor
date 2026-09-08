@@ -15,19 +15,21 @@ export function userPayload(u) {
 }
 
 // One-sentence statement of the single biggest factor behind the result.
-export function mainReason(r) {
-  const top = (r.explanation || [])[0];
+export function mainReasonFor(riskLevel, explanation) {
+  const top = (explanation || [])[0];
   if (!top) return null;
   const increases = top.direction === "increases_risk";
-  if (r.riskLevel === "high" || r.riskLevel === "medium") {
+  if (riskLevel === "high" || riskLevel === "medium") {
     return increases
-      ? `The main reason for your ${r.riskLevel} risk is: ${top.factor}.`
-      : `Your risk is ${r.riskLevel} despite ${top.factor} being in your favour — other factors are driving it up.`;
+      ? `The main reason for your ${riskLevel} risk is: ${top.factor}.`
+      : `Your risk is ${riskLevel} despite ${top.factor} being in your favour — other factors are driving it up.`;
   }
   return increases
     ? `Your risk is low overall, but the factor working most against you is: ${top.factor}.`
     : `The main reason your risk is low is: ${top.factor}.`;
 }
+
+export const mainReason = (r) => mainReasonFor(r.riskLevel, r.explanation);
 
 export function recordPayload(r) {
   return {
@@ -45,6 +47,7 @@ export function recordPayload(r) {
       shap_contribution: e.shap_contribution,
       direction: e.direction,
     })),
+    model_comparison: r.modelComparison || null,
     recommendations: r.recommendations || null,
     review_note: r.reviewNote || null,
     reviewed_at: r.reviewedAt ? r.reviewedAt.toISOString() : null,

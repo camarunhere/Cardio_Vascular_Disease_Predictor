@@ -25,19 +25,24 @@ from pydantic import BaseModel, Field
 from src.train_extended import CATEGORICAL_FEATURES, FEATURE_COLUMNS, NUMERIC_FEATURES
 
 MODEL_PATH = "models/cvd_model_extended.joblib"
+ALL_MODELS_PATH = "models/cvd_model_extended_all.joblib"
 METADATA_PATH = "models/cvd_model_extended_metadata.json"
 BACKGROUND_DATA = "data/cardio_extended.csv"
 
 app = FastAPI(title="CVD ML Service", version="1.0.0")
 
 _pipeline = None
+_all_pipelines: dict = {}  # every candidate model (logistic_regression, decision_tree, catboost, gradient_boosting)
 _background = None  # transformed sample for SHAP baselines
+_metadata: dict = {}
 _retrain_process: Optional[subprocess.Popen] = None
 
 
 def _load() -> None:
-    global _pipeline, _background
+    global _pipeline, _all_pipelines, _background, _metadata
     _pipeline = joblib.load(MODEL_PATH) if Path(MODEL_PATH).exists() else None
+    _all_pipelines = joblib.load(ALL_MODELS_PATH) if Path(ALL_MODELS_PATH).exists() else {}
+    _metadata = json.loads(Path(METADATA_PATH).read_text()) if Path(METADATA_PATH).exists() else {}
     _background = None
     if _pipeline is not None and Path(BACKGROUND_DATA).exists():
         sample = pd.read_csv(BACKGROUND_DATA, nrows=2000).sample(200, random_state=42)
@@ -102,6 +107,51 @@ def metadata() -> dict:
     return {"metadata": meta, "model_file_exists": Path(MODEL_PATH).exists(), "retraining": retraining}
 
 
+def _predict_and_explain(pipeline, X: pd.DataFrame, row: dict, top_n: int = 8) -> tuple[float, list[dict]]:
+    """Run one fitted pipeline on X and return (probability, ranked SHAP explanation)."""
+    probability = float(pipeline.predict_proba(X)[0, 1])
+
+    prep = pipeline.named_steps["prep"]
+    clf = pipeline.named_steps["clf"]
+    X_t = prep.transform(X)
+    X_t = np.asarray(X_t.todense() if hasattr(X_t, "todense") else X_t)
+    background = _background if _background is not None else X_t
+    if type(clf).__name__ in ("GradientBoostingClassifier", "CatBoostClassifier", "DecisionTreeClassifier"):
+        explainer = shap.TreeExplainer(clf)
+    else:
+        explainer = shap.LinearExplainer(clf, background)
+    shap_values = explainer.shap_values(X_t)
+    if isinstance(shap_values, list):
+        shap_values = shap_values[1]
+    shap_values = np.asarray(shap_values)
+    if shap_values.ndim == 3:
+        # Some estimators (e.g. DecisionTreeClassifier) return one SHAP array
+        # per class: (n_samples, n_features, n_classes). Keep the positive class.
+        shap_values = shap_values[:, :, 1]
+    values = shap_values[0]
+    names = prep.get_feature_names_out()
+
+    # Aggregate one-hot columns (cat__smoke_0 + cat__smoke_1 -> cat__smoke) so a
+    # category's net effect is reported, not a single misleading dummy column.
+    agg: dict[str, float] = {}
+    for name, contrib in zip(names, values):
+        name = str(name)
+        base = "cat__" + name[5:].rsplit("_", 1)[0] if name.startswith("cat__") else name
+        agg[base] = agg.get(base, 0.0) + float(contrib)
+
+    ranked = sorted(agg.items(), key=lambda t: abs(t[1]), reverse=True)[:top_n]
+    explanation = [
+        {
+            "feature": base,
+            "value": float(row.get(base.split("__", 1)[1], 0.0)),
+            "shap_contribution": round(contrib, 4),
+            "direction": "increases_risk" if contrib > 0 else "decreases_risk",
+        }
+        for base, contrib in ranked
+    ]
+    return probability, explanation
+
+
 @app.post("/predict")
 def predict(payload: Features) -> dict:
     if _pipeline is None:
@@ -114,42 +164,42 @@ def predict(payload: Features) -> dict:
     row["pulse_pressure"] = row["ap_hi"] - row["ap_lo"]
 
     X = pd.DataFrame([row])[FEATURE_COLUMNS]
-    probability = float(_pipeline.predict_proba(X)[0, 1])
+    probability, explanation = _predict_and_explain(_pipeline, X, row)
 
-    prep = _pipeline.named_steps["prep"]
-    clf = _pipeline.named_steps["clf"]
-    X_t = prep.transform(X)
-    X_t = np.asarray(X_t.todense() if hasattr(X_t, "todense") else X_t)
-    background = _background if _background is not None else X_t
-    if type(clf).__name__ in ("GradientBoostingClassifier", "CatBoostClassifier"):
-        explainer = shap.TreeExplainer(clf)
-    else:
-        explainer = shap.LinearExplainer(clf, background)
-    shap_values = explainer.shap_values(X_t)
-    if isinstance(shap_values, list):
-        shap_values = shap_values[1]
-    values = np.asarray(shap_values)[0]
-    names = prep.get_feature_names_out()
+    # Run every candidate model (logistic regression / decision tree / catboost /
+    # gradient boosting) on the same patient so the UI can show a side-by-side
+    # comparison and let the user pick which method's result to trust.
+    deployed_name = _metadata.get("model_name")
+    comparison = {m["model"]: m for m in _metadata.get("model_comparison", [])}
+    best_name = max(comparison, key=lambda n: comparison[n]["roc_auc"]) if comparison else None
 
-    # Aggregate one-hot columns (cat__smoke_0 + cat__smoke_1 -> cat__smoke) so a
-    # category's net effect is reported, not a single misleading dummy column.
-    agg: dict[str, float] = {}
-    for name, contrib in zip(names, values):
-        name = str(name)
-        base = "cat__" + name[5:].rsplit("_", 1)[0] if name.startswith("cat__") else name
-        agg[base] = agg.get(base, 0.0) + float(contrib)
+    all_models = []
+    for name, cand_pipeline in _all_pipelines.items():
+        cand_prob, cand_explanation = (
+            (probability, explanation) if name == deployed_name
+            else _predict_and_explain(cand_pipeline, X, row, top_n=5)
+        )
+        metrics = comparison.get(name, {})
+        all_models.append({
+            "model": name,
+            "risk_probability": round(cand_prob, 4),
+            "explanation": cand_explanation[:5],
+            "test_accuracy": metrics.get("accuracy"),
+            "test_precision": metrics.get("precision"),
+            "test_recall": metrics.get("recall"),
+            "test_f1_score": metrics.get("f1_score"),
+            "test_roc_auc": metrics.get("roc_auc"),
+            "is_deployed": name == deployed_name,
+            "is_most_accurate": name == best_name,
+        })
+    all_models.sort(key=lambda m: m["test_roc_auc"] or 0, reverse=True)
 
-    ranked = sorted(agg.items(), key=lambda t: abs(t[1]), reverse=True)[:8]
-    explanation = [
-        {
-            "feature": base,
-            "value": float(row.get(base.split("__", 1)[1], 0.0)),
-            "shap_contribution": round(contrib, 4),
-            "direction": "increases_risk" if contrib > 0 else "decreases_risk",
-        }
-        for base, contrib in ranked
-    ]
-    return {"risk_probability": round(probability, 4), "explanation": explanation, "bmi": round(row["bmi"], 1)}
+    return {
+        "risk_probability": round(probability, 4),
+        "explanation": explanation,
+        "bmi": round(row["bmi"], 1),
+        "all_models": all_models,
+    }
 
 
 @app.post("/retrain")
