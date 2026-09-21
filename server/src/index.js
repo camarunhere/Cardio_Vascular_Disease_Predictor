@@ -42,6 +42,27 @@ async function seedUsers() {
 }
 
 const app = express();
+
+// CORS for the split deployment (frontend on Vercel, API on Render). Auth is a
+// Bearer token, not cookies, so allowing all origins is safe; set
+// FRONTEND_ORIGIN (comma-separated) to restrict it to your Vercel URL(s).
+const ALLOWED_ORIGINS = (process.env.FRONTEND_ORIGIN || "*")
+  .split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    if (ALLOWED_ORIGINS.includes("*")) res.setHeader("Access-Control-Allow-Origin", "*");
+    else if (ALLOWED_ORIGINS.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+  }
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 app.use(express.json({ limit: "1mb" }));
 
 app.use("/api/auth", authRoutes);
@@ -72,8 +93,10 @@ app.use((err, req, res, next) => {
 const start = async () => {
   await connectDb();
   await seedUsers();
-  await ensureMlService();
-  app.listen(PORT, () => console.log(`[server] http://127.0.0.1:${PORT}`));
+  app.listen(PORT, () => console.log(`[server] listening on port ${PORT}`));
+  // Start the ML service after the port is open so hosts that probe the port
+  // (Render) see the server immediately; /health reports model_loaded once ready.
+  ensureMlService().catch((err) => console.error("[ml] failed to start:", err));
 };
 
 start().catch((err) => {

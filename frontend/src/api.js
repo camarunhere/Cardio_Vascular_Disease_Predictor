@@ -1,3 +1,7 @@
+// Empty in local dev / single-server mode (same-origin). On Vercel, set
+// VITE_API_URL to the Render backend URL, e.g. https://cardioai.onrender.com
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+
 const TOKEN_KEY = "cvd_token";
 const USER_KEY = "cvd_user";
 
@@ -24,7 +28,7 @@ export async function api(path, { method = "GET", body, formData } = {}) {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (body) headers["Content-Type"] = "application/json";
 
-  const res = await fetch(path, {
+  const res = await fetch(API_BASE + path, {
     method,
     headers,
     body: formData ? formData : body ? JSON.stringify(body) : undefined,
@@ -50,7 +54,7 @@ export async function api(path, { method = "GET", body, formData } = {}) {
 }
 
 export async function downloadPdf(path, filename) {
-  const res = await fetch(path, {
+  const res = await fetch(API_BASE + path, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
   if (res.status === 401) {

@@ -1,0 +1,13 @@
+.git
+.venv
+node_modules
+**/node_modules
+frontend
+api
+catboost_info
+models
+data/mongo
+data/uploads
+data/app.db
+server/.env
+*.log

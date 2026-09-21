@@ -60,7 +60,7 @@ export async function ensureMlService() {
   });
 
   // Wait for it to come up (model + SHAP imports take a few seconds).
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 180; i++) {
     await new Promise((r) => setTimeout(r, 1000));
     if (await isUp()) {
       console.log("[ml] ML service is up.");

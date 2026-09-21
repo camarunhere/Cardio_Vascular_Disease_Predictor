@@ -135,6 +135,29 @@ MongoDB Atlas instead:
    `[db] Connected to MongoDB (MONGODB_URI)` in the log). Remove
    `MONGODB_URI` from `server/.env` to switch back to the local DB.
 
+## Deploy: backend on Render, frontend on Vercel
+
+**Backend (Render, Docker).** The root `Dockerfile` bundles the Node API and the
+Python ML service and trains the model at build time.
+
+1. MongoDB Atlas → Network Access → allow `0.0.0.0/0` (Render IPs are dynamic).
+2. Render → New → Blueprint (uses `render.yaml`) or New → Web Service → Docker.
+   Set env vars: `MONGODB_URI` (Atlas string), `JWT_SECRET` (long random string).
+   Leave `FRONTEND_ORIGIN` unset for now. Deploy and wait for `/health` to return
+   `"model_loaded": true` (first boot takes a minute for the ML service to load).
+
+**Frontend (Vercel).**
+
+1. Vercel → Add New Project → import the repo. Set **Root Directory = `frontend`**
+   (framework auto-detects as Vite; build `npm run build`, output `dist`).
+2. Environment variable: `VITE_API_URL` = your Render URL (no trailing slash).
+3. Deploy, then (optional hardening) set `FRONTEND_ORIGIN` on Render to your
+   Vercel URL and redeploy the backend.
+
+Notes: Render's free tier sleeps after 15 min idle (first request wakes it in
+~1 min) and its disk is ephemeral, so uploaded report files do not persist —
+patient data lives in Atlas.
+
 ## Layout
 
 ```
