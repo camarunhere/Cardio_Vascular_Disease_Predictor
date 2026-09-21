@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 export function Card({ title, children, className = "" }) {
   return (
-    <div className={`bg-white/75 backdrop-blur-md border border-white/60 rounded-2xl shadow-lg shadow-slate-900/[0.07] p-6 transition-shadow hover:shadow-xl hover:shadow-slate-900/10 ${className}`}>
+    <div className={`bg-white/92 backdrop-blur-xl border border-white/70 rounded-2xl shadow-lg shadow-slate-900/[0.07] p-6 transition-shadow hover:shadow-xl hover:shadow-slate-900/10 ${className}`}>
       {title && (
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
           {title}

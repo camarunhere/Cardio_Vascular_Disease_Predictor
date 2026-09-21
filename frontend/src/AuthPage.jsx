@@ -43,13 +43,13 @@ export default function AuthPage({ onLogin }) {
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-5xl mb-3 drop-shadow-[0_0_18px_rgba(239,68,68,0.5)]">🫀</div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">CardioAI</h1>
-          <p className="text-sm text-slate-600 mt-1.5">
+          <h1 className="text-3xl font-bold text-white tracking-tight drop-shadow-lg">CardioAI</h1>
+          <p className="text-sm text-slate-100 mt-1.5 drop-shadow">
             AI-Based Cardiovascular Disease Prediction Website
           </p>
         </div>
 
-        <div className="bg-white/80 backdrop-blur-md border border-white/70 rounded-2xl shadow-2xl shadow-indigo-300/40 p-8 animate-fade-in-up">
+        <div className="bg-white/92 backdrop-blur-xl border border-white/70 rounded-2xl shadow-2xl shadow-indigo-300/40 p-8 animate-fade-in-up">
           <div className="flex rounded-lg bg-slate-100 p-1 mb-6">
             {["login", "register"].map((m) => (
               <button

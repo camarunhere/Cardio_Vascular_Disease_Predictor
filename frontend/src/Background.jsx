@@ -268,23 +268,31 @@ export default function Background({ variant }) {
   }, [variant]);
 
   return (
-    <canvas
-      ref={ref}
-      aria-hidden="true"
-      className="fixed inset-0 w-full h-full pointer-events-none z-0"
-    />
+    <>
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-0 bg-cover bg-center pointer-events-none"
+        style={{ backgroundImage: "url(/bg.jpg)" }}
+      />
+      <div aria-hidden="true" className="fixed inset-0 z-0 bg-slate-950/30 pointer-events-none" />
+      <canvas
+        ref={ref}
+        aria-hidden="true"
+        className="fixed inset-0 w-full h-full pointer-events-none z-0"
+      />
+    </>
   );
 }
 
-/** Per-variant page tint — soft, light gradients so the quiet motion reads clearly. */
+/** Fallback colour shown while the background photo loads. */
 export const BG_TINTS = {
-  ecg: "bg-gradient-to-br from-slate-50 via-rose-50 to-slate-100",
-  aurora: "bg-gradient-to-br from-blue-50 via-slate-50 to-cyan-50",
-  pulse: "bg-gradient-to-br from-rose-50 via-slate-50 to-orange-50",
-  chartgrid: "bg-gradient-to-br from-emerald-50 via-slate-50 to-teal-50",
-  waves: "bg-gradient-to-b from-cyan-50 via-slate-50 to-blue-50",
-  bubbles: "bg-gradient-to-b from-sky-50 via-slate-50 to-indigo-50",
-  calm: "bg-gradient-to-br from-violet-50 via-slate-50 to-purple-50",
-  medic: "bg-gradient-to-br from-teal-50 via-slate-50 to-cyan-50",
-  network: "bg-gradient-to-br from-indigo-50 via-slate-50 to-blue-50",
+  ecg: "bg-slate-900",
+  aurora: "bg-slate-900",
+  pulse: "bg-slate-900",
+  chartgrid: "bg-slate-900",
+  waves: "bg-slate-900",
+  bubbles: "bg-slate-900",
+  calm: "bg-slate-900",
+  medic: "bg-slate-900",
+  network: "bg-slate-900",
 };
