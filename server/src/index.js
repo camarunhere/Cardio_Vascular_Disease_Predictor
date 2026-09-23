@@ -93,7 +93,10 @@ app.use((err, req, res, next) => {
 const start = async () => {
   await connectDb();
   await seedUsers();
-  app.listen(PORT, () => console.log(`[server] listening on port ${PORT}`));
+  app.listen(PORT, () => {
+    console.log(`[server] listening on port ${PORT}`);
+    console.log(`\n  ➔  Open the app:  http://127.0.0.1:${PORT}\n`);
+  });
   // Start the ML service after the port is open so hosts that probe the port
   // (Render) see the server immediately; /health reports model_loaded once ready.
   ensureMlService().catch((err) => console.error("[ml] failed to start:", err));
