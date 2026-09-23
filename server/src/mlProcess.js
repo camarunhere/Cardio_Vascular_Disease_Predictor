@@ -47,10 +47,14 @@ export async function ensureMlService() {
   }
 
   const py = pythonBin();
-  console.log(`[ml] Starting Python ML service (${py}, port ${ML_PORT})…`);
+  console.log("[ml] Starting internal ML service…");
   child = spawn(
     py,
-    ["-m", "uvicorn", "src.ml_service:app", "--port", ML_PORT, "--host", "127.0.0.1", "--no-access-log"],
+    [
+      "-m", "uvicorn", "src.ml_service:app",
+      "--port", ML_PORT, "--host", "127.0.0.1",
+      "--no-access-log", "--log-level", "warning",
+    ],
     { cwd: REPO_ROOT, stdio: ["ignore", "inherit", "inherit"] }
   );
   child.on("exit", (code) => {
