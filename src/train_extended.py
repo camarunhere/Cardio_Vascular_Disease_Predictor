@@ -117,11 +117,9 @@ def main() -> None:
 
     print("\n=== Full model comparison on held-out test set ===")
     comparison_table = []
-    fitted_pipelines = {}
     for name, estimator in CANDIDATES.items():
         candidate_pipeline = build_pipeline(estimator)
         candidate_pipeline.fit(X_train, y_train)
-        fitted_pipelines[name] = candidate_pipeline
         cand_pred = candidate_pipeline.predict(X_test)
         cand_proba = candidate_pipeline.predict_proba(X_test)[:, 1]
         metrics = full_metrics(y_test, cand_pred, cand_proba)
@@ -134,10 +132,6 @@ def main() -> None:
         )
 
     joblib.dump(pipeline, args.out)
-    # All four fitted candidates, saved so the API can offer a side-by-side
-    # comparison of every method's prediction for the same patient, not just
-    # the deployed one.
-    joblib.dump(fitted_pipelines, args.out.replace(".joblib", "_all.joblib"))
     metadata = {
         "model_name": best_name,
         "test_roc_auc": round(float(test_auc), 4),

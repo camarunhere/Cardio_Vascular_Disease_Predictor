@@ -25,23 +25,20 @@ from pydantic import BaseModel, Field
 from src.train_extended import CATEGORICAL_FEATURES, FEATURE_COLUMNS, NUMERIC_FEATURES
 
 MODEL_PATH = "models/cvd_model_extended.joblib"
-ALL_MODELS_PATH = "models/cvd_model_extended_all.joblib"
 METADATA_PATH = "models/cvd_model_extended_metadata.json"
 BACKGROUND_DATA = "data/cardio_extended.csv"
 
 app = FastAPI(title="CVD ML Service", version="1.0.0")
 
 _pipeline = None
-_all_pipelines: dict = {}  # every candidate model (logistic_regression, decision_tree, catboost, gradient_boosting)
 _background = None  # transformed sample for SHAP baselines
 _metadata: dict = {}
 _retrain_process: Optional[subprocess.Popen] = None
 
 
 def _load() -> None:
-    global _pipeline, _all_pipelines, _background, _metadata
+    global _pipeline, _background, _metadata
     _pipeline = joblib.load(MODEL_PATH) if Path(MODEL_PATH).exists() else None
-    _all_pipelines = joblib.load(ALL_MODELS_PATH) if Path(ALL_MODELS_PATH).exists() else {}
     _metadata = json.loads(Path(METADATA_PATH).read_text()) if Path(METADATA_PATH).exists() else {}
     _background = None
     if _pipeline is not None and Path(BACKGROUND_DATA).exists():
@@ -166,39 +163,10 @@ def predict(payload: Features) -> dict:
     X = pd.DataFrame([row])[FEATURE_COLUMNS]
     probability, explanation = _predict_and_explain(_pipeline, X, row)
 
-    # Run every candidate model (logistic regression / decision tree / catboost /
-    # gradient boosting) on the same patient so the UI can show a side-by-side
-    # comparison and let the user pick which method's result to trust.
-    deployed_name = _metadata.get("model_name")
-    comparison = {m["model"]: m for m in _metadata.get("model_comparison", [])}
-    best_name = max(comparison, key=lambda n: comparison[n]["roc_auc"]) if comparison else None
-
-    all_models = []
-    for name, cand_pipeline in _all_pipelines.items():
-        cand_prob, cand_explanation = (
-            (probability, explanation) if name == deployed_name
-            else _predict_and_explain(cand_pipeline, X, row, top_n=5)
-        )
-        metrics = comparison.get(name, {})
-        all_models.append({
-            "model": name,
-            "risk_probability": round(cand_prob, 4),
-            "explanation": cand_explanation[:5],
-            "test_accuracy": metrics.get("accuracy"),
-            "test_precision": metrics.get("precision"),
-            "test_recall": metrics.get("recall"),
-            "test_f1_score": metrics.get("f1_score"),
-            "test_roc_auc": metrics.get("roc_auc"),
-            "is_deployed": name == deployed_name,
-            "is_most_accurate": name == best_name,
-        })
-    all_models.sort(key=lambda m: m["test_roc_auc"] or 0, reverse=True)
-
     return {
         "risk_probability": round(probability, 4),
         "explanation": explanation,
         "bmi": round(row["bmi"], 1),
-        "all_models": all_models,
     }
 
 

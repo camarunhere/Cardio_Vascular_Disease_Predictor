@@ -40,7 +40,6 @@ const healthRecordSchema = new Schema({
   riskClassification: { type: String, enum: ["low_risk", "high_risk"], required: true },
   alertStatus: { type: String, enum: ["normal", "high_risk"], required: true },
   explanation: [{ factor: String, shap_contribution: Number, direction: String }],
-  modelComparison: Schema.Types.Mixed, // every candidate model's prediction, for user comparison
   recommendations: Schema.Types.Mixed,
   reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
   reviewNote: String,

@@ -47,7 +47,6 @@ export function recordPayload(r) {
       shap_contribution: e.shap_contribution,
       direction: e.direction,
     })),
-    model_comparison: r.modelComparison || null,
     recommendations: r.recommendations || null,
     review_note: r.reviewNote || null,
     reviewed_at: r.reviewedAt ? r.reviewedAt.toISOString() : null,
